@@ -1,20 +1,3 @@
-> [!IMPORTANT]
-> 
-> Thank you for your interest in this project. However, please be aware that this repository is **no longer maintained**.
-> 
-> - No further updates or bug fixes will be made.
-> - Issues and pull requests will not be responded to.
->   
-> For any critical needs, please consider forking the repository and making your own updates.
-
-> [!WARNING]
-> 
-> I have grave concerns regarding the validity and integrity of the data this package accesses.
-> I urge users to exercise extreme caution and skepticism when using this tool, and to seek alternative sources for their work.
-
-# WID.world Stata command
-
-This is the ~official~ **[note: I am no longer affiliated with the World Inequality Lab and cannot offer any guarantee that the command will remain functional in the future]** Stata command of the World Inequality Database (WID.world). It lets users download data directly from WID.world into Stata.
 
 ## Installation
 
