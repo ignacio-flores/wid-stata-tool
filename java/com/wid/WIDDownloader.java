@@ -2,22 +2,34 @@ package com.wid;
 
 import java.net.*;
 import java.util.*;
+
+//import javax.xml.crypto.Data;
+
 import java.io.*;
 import org.json.*;
 import com.stata.sfi.*;
 
 public class WIDDownloader {
 
-    private static String apiKey = "<private API key>";
+    private static String apiKey = "rYFByOB0ioaPATwHtllMI71zLOZSK0Ic5veQonJP";
 
     private static String apiCountriesAvailableVariables = "https://rfap9nitz6.execute-api.eu-west-1.amazonaws.com/prod/countries-available-variables";
     private static String apiCountriesVariables          = "https://rfap9nitz6.execute-api.eu-west-1.amazonaws.com/prod/countries-variables";
     private static String apiCountriesVariablesMetadata  = "https://rfap9nitz6.execute-api.eu-west-1.amazonaws.com/prod/countries-variables-metadata";
 
+    private static void debugPrint(String verbosity, String message) {
+        if ("verbose".equalsIgnoreCase(verbosity)) {
+            SFIToolkit.display("\n" + message);
+        }
+    }
+
+
     public static int importCountriesAvailableVariables(String[] args) {
+      
         // Retrieve the arguments of the query
         String countries = args[0];
         String sixlet = args[1];
+        String verbosity = args[2];
 
         // Create the query
         String query;
@@ -36,6 +48,10 @@ public class WIDDownloader {
         Scanner scanner;
         String response;
         try {
+          
+            // Print query 
+            debugPrint(verbosity, "Calling API: " + apiCountriesAvailableVariables + "?" + query);
+            
             // Perform the GET query
             URL queryURL = new URL(apiCountriesAvailableVariables + "?" + query);
             HttpURLConnection connection = (HttpURLConnection) queryURL.openConnection();
@@ -136,6 +152,7 @@ public class WIDDownloader {
         } else {
         	includeExtrapolations = true;
         }
+        String verbosity = args[3];
 
         // Create the query
         String query;
@@ -154,6 +171,10 @@ public class WIDDownloader {
         Scanner scanner;
         String response;
         try {
+          
+            // Print query
+            debugPrint(verbosity, "Calling API: " + apiCountriesVariables + "?" + query);
+
             // Perform the GET query
             URL queryURL = new URL(apiCountriesVariables + "?" + query);
             HttpURLConnection connection = (HttpURLConnection) queryURL.openConnection();
@@ -297,6 +318,7 @@ public class WIDDownloader {
         // Retrieve the arguments of the query
         String countries = args[0];
         String variables = args[1];
+        String verbosity = args[2];  
 
         // Create the query
         String query;
@@ -315,6 +337,10 @@ public class WIDDownloader {
         Scanner scanner;
         String response;
         try {
+          
+            // Print query
+            debugPrint(verbosity, "Calling API: " + apiCountriesVariablesMetadata + "?" + query);
+
             // Perform the GET query
             URL queryURL = new URL(apiCountriesVariablesMetadata + "?" + query);
             HttpURLConnection connection = (HttpURLConnection) queryURL.openConnection();

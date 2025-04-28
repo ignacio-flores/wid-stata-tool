@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Go to the source folder
+cd "$(dirname "$0")/java" || exit 1
+
+# Compile with Java 11 compatibility
+javac -source 11 -target 11 \
+  -cp "json.jar:sfi-api.jar" \
+  -d . com/wid/WIDDownloader.java
+
+# Return to project root
+cd ..
+
+# Package into a jar
+jar cf WIDDownloader.jar -C java com
+
+echo "Compilation and packaging of wid-tool completed."
