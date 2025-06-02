@@ -117,7 +117,7 @@ public class WIDDownloader {
                 Data.storeStr(variablePopIndex,        i + 1, listPop.get(i));
             }
         } catch (Exception e) {
-            SFIToolkit.error("\nserver response invalid; if the problem persists, please file bug report to thomas.blanchet@wid.world\n");
+            SFIToolkit.error("\nserver response invalid; if the problem persists, please file bug report to stats@wid.world\n");
             SFIToolkit.error(e.toString());
             SFIToolkit.error("\n");
             return(674);
@@ -284,7 +284,7 @@ public class WIDDownloader {
                 Data.storeNum(variableValueIndex,      i + 1, listValue.get(i));
             }
         } catch (Exception e) {
-            SFIToolkit.error("\nserver response invalid; if the problem persists, please file bug report to thomas.blanchet@wid.world\n");
+            SFIToolkit.error("\nserver response invalid; if the problem persists, please file bug report to stats@wid.world\n");
             SFIToolkit.error(e.toString());
             SFIToolkit.error("\n");
             return(674);
@@ -631,7 +631,7 @@ public class WIDDownloader {
                 Data.storeStr(variableImputation,  i + 1, listImputation.get(i));
             }
         } catch (Exception e) {
-            SFIToolkit.error("\nserver response invalid; if the problem persists, please file bug report to thomas.blanchet@wid.world\n");
+            SFIToolkit.error("\nserver response invalid; if the problem persists, please file bug report to stats@wid.world\n");
             SFIToolkit.error(e.toString());
             SFIToolkit.error("\n");
             return(674);
