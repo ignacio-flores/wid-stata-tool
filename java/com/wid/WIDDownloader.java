@@ -25,6 +25,19 @@ public class WIDDownloader {
         }
     }
 
+    // Convert an S3 URI such as s3://bucket/key to a HTTPS URL
+    private static String s3UriToHttps(String s3Uri) {
+        if (s3Uri != null && s3Uri.startsWith("s3://")) {
+            String path = s3Uri.substring(5); // remove prefix
+            int slash = path.indexOf('/');
+            if (slash > 0) {
+                String bucket = path.substring(0, slash);
+                String key = path.substring(slash + 1);
+                return "https://" + bucket + ".s3.amazonaws.com/" + key;
+            }
+        }
+        return s3Uri;
+    }
 
     public static int importCountriesAvailableVariables(String[] args) {
       
@@ -206,6 +219,34 @@ public class WIDDownloader {
             List<Double>  listValue      = new ArrayList<Double>();
 
             JSONObject json = new JSONObject(response);
+
+            // If the API indicates the result is too large, retrieve the JSON
+            // file from the provided S3 URI
+            if (json.has("status") &&
+                json.getString("status").equals("payload_too_large")) {
+                SFIToolkit.error("\n" + json.optString("message"));
+                String s3uri = json.optString("s3_uri");
+                if (!s3uri.equals("")) {
+                    String httpUrl = s3UriToHttps(s3uri);
+                    SFIToolkit.error("\nDownload from: " + httpUrl);
+                    try {
+                        debugPrint(verbosity, "Downloading: " + httpUrl);
+                        URL s3URL = new URL(httpUrl);
+                        Scanner s3Scanner = new Scanner(s3URL.openStream());
+                        StringBuilder sb = new StringBuilder();
+                        while (s3Scanner.hasNext()) {
+                            sb.append(s3Scanner.nextLine());
+                        }
+                        s3Scanner.close();
+                        json = new JSONObject(sb.toString());
+                    } catch (Exception ex) {
+                        SFIToolkit.error("\nCould not download large result\n");
+                        return(677);
+                    }
+                } else {
+                    return(677);
+                }
+            }
 
             Iterator<String> indicatorIter = json.keys();
             while (indicatorIter.hasNext()) {
