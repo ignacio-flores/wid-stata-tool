@@ -11,11 +11,13 @@ import com.stata.sfi.*;
 
 public class WIDDownloader {
 
-    private static String apiKey = "rYFByOB0ioaPATwHtllMI71zLOZSK0Ic5veQonJP";
+    private static final String apiKey = "rYFByOB0ioaPATwHtllMI71zLOZSK0Ic5veQonJP";
+    private static final String ENVIRONMENT = "dev";  // Change to "prod" when needed
+    private static final String BASE_API_URL = "https://rfap9nitz6.execute-api.eu-west-1.amazonaws.com/" + ENVIRONMENT;
 
-    private static String apiCountriesAvailableVariables = "https://rfap9nitz6.execute-api.eu-west-1.amazonaws.com/prod/countries-available-variables";
-    private static String apiCountriesVariables          = "https://rfap9nitz6.execute-api.eu-west-1.amazonaws.com/prod/countries-variables";
-    private static String apiCountriesVariablesMetadata  = "https://rfap9nitz6.execute-api.eu-west-1.amazonaws.com/prod/countries-variables-metadata";
+    private static final String apiCountriesAvailableVariables = BASE_API_URL + "/countries-available-variables";
+    private static final String apiCountriesVariables          = BASE_API_URL + "/countries-variables";
+    private static final String apiCountriesVariablesMetadata  = BASE_API_URL + "/countries-variables-metadata";
 
     private static void debugPrint(String verbosity, String message) {
         if ("verbose".equalsIgnoreCase(verbosity)) {
