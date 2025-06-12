@@ -3,8 +3,8 @@
 # Go to the source folder
 cd "$(dirname "$0")/java" || exit 1
 
-# Compile with Java 11 compatibility
-javac -source 11 -target 11 \
+# Compile with Java 8 compatibility
+javac -source 8 -target 8 \
   -cp "json.jar:sfi-api.jar" \
   -d . com/wid/WIDDownloader.java
 

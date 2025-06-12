@@ -220,10 +220,10 @@ public class WIDDownloader {
 
             JSONObject json = new JSONObject(response);
 
-            // If the API indicates the result is too large, retrieve the JSON
-            // file from the provided S3 URI
-            if (json.has("status") &&
-                json.getString("status").equals("payload_too_large")) {
+            // If the API indicates the result is too large, display the
+            // provided message and download link. Attempt to fetch the data
+            // from S3; if that fails, return without creating a dataset.
+            if (json.optString("status").equals("payload_too_large")) {
                 SFIToolkit.error("\n" + json.optString("message"));
                 String s3uri = json.optString("s3_uri");
                 if (!s3uri.equals("")) {
@@ -232,7 +232,14 @@ public class WIDDownloader {
                     try {
                         debugPrint(verbosity, "Downloading: " + httpUrl);
                         URL s3URL = new URL(httpUrl);
-                        Scanner s3Scanner = new Scanner(s3URL.openStream());
+                        HttpURLConnection s3Conn = (HttpURLConnection) s3URL.openConnection();
+                        s3Conn.setRequestMethod("GET");
+                        int status = s3Conn.getResponseCode();
+                        if (status != HttpURLConnection.HTTP_OK) {
+                            SFIToolkit.error("\nCould not download large result (HTTP " + status + ")");
+                            return(0);
+                        }
+                        Scanner s3Scanner = new Scanner(s3Conn.getInputStream());
                         StringBuilder sb = new StringBuilder();
                         while (s3Scanner.hasNext()) {
                             sb.append(s3Scanner.nextLine());
@@ -240,13 +247,16 @@ public class WIDDownloader {
                         s3Scanner.close();
                         json = new JSONObject(sb.toString());
                     } catch (Exception ex) {
-                        SFIToolkit.error("\nCould not download large result\n");
-                        return(677);
+                        SFIToolkit.error("\nCould not download large result");
+                        SFIToolkit.error(ex.toString());
+                        return(0);
                     }
                 } else {
-                    return(677);
+                    // No URI provided; only show the message
+                    return(0);
                 }
             }
+
 
             Iterator<String> indicatorIter = json.keys();
             while (indicatorIter.hasNext()) {
