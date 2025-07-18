@@ -1,7 +1,7 @@
 *! wid v1.0.5 world inequality database 2jun2025
 
 program wid
-	version 16
+	version 13
 	
 	syntax, [INDicators(string) AReas(string) Years(numlist) Perc(string) AGes(string) POPulation(string) METAdata EXclude clear VERBOSE]
 	

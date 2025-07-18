@@ -12,6 +12,6 @@ javac -source 8 -target 8 \
 cd ..
 
 # Package into a jar
-jar cf WIDDownloader.jar -C java com
+jar cf wid.jar -C java com
 
 echo "Compilation and packaging of wid-tool completed."
