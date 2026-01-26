@@ -10,8 +10,6 @@ sysdir set PERSONAL "$root"
 //wid, ind(npopul) ar(FR) y(2020) ag(999) pop(i) verbose clear
 
 //Thomas' queries 
- wid, ind(npopul) clear
+ wid, ind(npopul) clear verbose 
 	
-//wid, ind(npopul mnninc mgdpro mnnfin mfinrx mfinpx mnwgxa mnwgxd mtbnnx mtgxrx mtgmpx mtsxrx) ag(999) pop(i) verbose clear
-
  

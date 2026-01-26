@@ -12,7 +12,7 @@ import com.stata.sfi.*;
 public class WIDDownloader {
 
     private static final String apiKey = "rYFByOB0ioaPATwHtllMI71zLOZSK0Ic5veQonJP";
-    private static final String ENVIRONMENT = "dev";  // Change to "prod" when needed
+    private static final String ENVIRONMENT = "prod";  // Change to "dev" or "prod" when needed
     private static final String BASE_API_URL = "https://rfap9nitz6.execute-api.eu-west-1.amazonaws.com/" + ENVIRONMENT;
 
     private static final String apiCountriesAvailableVariables = BASE_API_URL + "/countries-available-variables";

@@ -1,4 +1,4 @@
-*! wid v1.0.5 world inequality database 2jun2025
+*! wid v1.0.6 world inequality database 26Jan2026
 
 program wid
 	version 13
