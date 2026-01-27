@@ -1,5 +1,8 @@
 #!/bin/bash
 
+#Compiles everything in the java folder into single wid.jar, exported in /. 
+#(include it manually in the ssc folder before sending a new version)
+
 # Go to the source folder
 cd "$(dirname "$0")/java" || exit 1
 
