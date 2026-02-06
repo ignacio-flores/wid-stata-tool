@@ -25,6 +25,29 @@ public class WIDDownloader {
         }
     }
 
+    private static JSONArray safeJsonArray(String raw) {
+        if (raw == null) {
+            return null;
+        }
+
+        String trimmed = raw.trim();
+        if (trimmed.isEmpty() || "null".equalsIgnoreCase(trimmed)) {
+            return null;
+        }
+
+        try {
+            if (!trimmed.startsWith("[")) {
+                JSONArray array = new JSONArray();
+                array.put(Integer.parseInt(trimmed));
+                return array;
+            }
+
+            return new JSONArray(trimmed);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     // Convert an S3 URI such as s3://bucket/key to a HTTPS URL
     private static String s3UriToHttps(String s3Uri) {
         if (s3Uri != null && s3Uri.startsWith("s3://")) {
@@ -268,25 +291,46 @@ public class WIDDownloader {
 							// List of data points to be included in any case, if any
 							List<Integer> listDataPoints = new ArrayList<Integer>();
 							if (!dataPoints.equals("")) {
-								JSONArray dataPointsArray = new JSONArray(dataPoints);
-								Iterator dataPointsIterator = dataPointsArray.iterator();
-								while (dataPointsIterator.hasNext()) {
-									Integer value = (Integer) dataPointsIterator.next();
-									listDataPoints.add(value);
+								JSONArray dataPointsArray = safeJsonArray(dataPoints);
+								if (dataPointsArray != null) {
+									Iterator dataPointsIterator = dataPointsArray.iterator();
+									while (dataPointsIterator.hasNext()) {
+										Object value = dataPointsIterator.next();
+										if (value instanceof Number) {
+											listDataPoints.add(((Number) value).intValue());
+										}
+									}
 								}
 							}
 							
 							// List of all the years to be excluded
-							JSONArray extrapolationArray = new JSONArray(extrapolation);
-							Iterator extrapolationArrayIter = extrapolationArray.iterator();
-							while (extrapolationArrayIter.hasNext()) {
-								JSONArray extrapolationPeriod = (JSONArray) extrapolationArrayIter.next();
-								int yearStart = extrapolationPeriod.getInt(0);
-								int yearEnd = extrapolationPeriod.getInt(1);
-								
-								for (int i = yearStart; i <= yearEnd; i++) {
-									if (!listDataPoints.contains(i)) {
-										excludeYears.add(i);
+							JSONArray extrapolationArray = safeJsonArray(extrapolation);
+							if (extrapolationArray != null) {
+								Iterator extrapolationArrayIter = extrapolationArray.iterator();
+								while (extrapolationArrayIter.hasNext()) {
+									Object period = extrapolationArrayIter.next();
+									if (period instanceof JSONArray) {
+										JSONArray extrapolationPeriod = (JSONArray) period;
+										if (extrapolationPeriod.length() == 0) {
+											continue;
+										}
+
+										int yearStart = extrapolationPeriod.getInt(0);
+										int yearEnd = yearStart;
+										if (extrapolationPeriod.length() > 1) {
+											yearEnd = extrapolationPeriod.getInt(1);
+										}
+
+										for (int i = yearStart; i <= yearEnd; i++) {
+											if (!listDataPoints.contains(i)) {
+												excludeYears.add(i);
+											}
+										}
+									} else if (period instanceof Number) {
+										int year = ((Number) period).intValue();
+										if (!listDataPoints.contains(year)) {
+											excludeYears.add(year);
+										}
 									}
 								}
 							}
