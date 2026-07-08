@@ -25,6 +25,105 @@ public class WIDDownloader {
         }
     }
 
+    private static int maxSize(int current, String value) {
+        if (value != null && value.length() > current) {
+            return value.length();
+        }
+        return current;
+    }
+
+    private static String optString(JSONObject json, String key) {
+        if (json == null || !json.has(key) || json.isNull(key)) {
+            return "";
+        }
+        return json.optString(key, "");
+    }
+
+    private static double optDoubleOrMissing(JSONObject json, String key) {
+        if (json == null || !json.has(key) || json.isNull(key)) {
+            return Double.NaN;
+        }
+
+        Object value = json.opt(key);
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+
+        String stringValue = value.toString().trim();
+        if (stringValue.length() == 0) {
+            return Double.NaN;
+        }
+
+        try {
+            return Double.parseDouble(stringValue);
+        } catch (NumberFormatException e) {
+            return Double.NaN;
+        }
+    }
+
+    private static double optFirstDoubleOrMissing(JSONObject json, String firstKey, String secondKey) {
+        double value = optDoubleOrMissing(json, firstKey);
+        if (Double.isNaN(value)) {
+            value = optDoubleOrMissing(json, secondKey);
+        }
+        return value;
+    }
+
+    private static double stataMissingIfNaN(double value) {
+        if (Double.isNaN(value)) {
+            return Missing.getValue();
+        }
+        return value;
+    }
+
+    private static JSONObject findObject(JSONArray array, String key) {
+        if (array == null) {
+            return new JSONObject();
+        }
+
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject item = array.optJSONObject(i);
+            if (item == null || !item.has(key) || item.isNull(key)) {
+                continue;
+            }
+
+            JSONObject object = item.optJSONObject(key);
+            if (object != null) {
+                return object;
+            }
+        }
+
+        return new JSONObject();
+    }
+
+    private static JSONArray findArray(JSONArray array, String key) {
+        if (array == null) {
+            return new JSONArray();
+        }
+
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject item = array.optJSONObject(i);
+            if (item == null || !item.has(key) || item.isNull(key)) {
+                continue;
+            }
+
+            JSONArray found = item.optJSONArray(key);
+            if (found != null) {
+                return found;
+            }
+        }
+
+        return new JSONArray();
+    }
+
+    private static String firstObjectName(JSONObject object) {
+        String[] names = JSONObject.getNames(object);
+        if (names == null || names.length == 0) {
+            return "";
+        }
+        return names[0];
+    }
+
     // Convert an S3 URI such as s3://bucket/key to a HTTPS URL
     private static String s3UriToHttps(String s3Uri) {
         if (s3Uri != null && s3Uri.startsWith("s3://")) {
@@ -161,13 +260,7 @@ public class WIDDownloader {
         // Retrieve the arguments of the query
         String countries = args[0];
         String variables = args[1];
-        boolean includeExtrapolations;
-        if (args[2].equals("exclude")) {
-        	includeExtrapolations = false;
-        } else {
-        	includeExtrapolations = true;
-        }
-        String verbosity = args[3];
+        String verbosity = args.length > 3 ? args[3] : args[2];
 
         // Create the query
         String query;
@@ -217,6 +310,7 @@ public class WIDDownloader {
             List<String>  listPop        = new ArrayList<String>();
             List<Integer> listYear       = new ArrayList<Integer>();
             List<Double>  listValue      = new ArrayList<Double>();
+            List<Double>  listRowScore   = new ArrayList<Double>();
 
             JSONObject json = new JSONObject(response);
 
@@ -256,43 +350,6 @@ public class WIDDownloader {
 
                     String country = JSONObject.getNames(countryData)[0];
                     
-                    // Retrieve data on extrapolation, if required
-                    List<Integer> excludeYears = new ArrayList<Integer>();
-                    if (!includeExtrapolations) {
-						JSONObject countryMeta = countryData.getJSONObject(country).getJSONObject("meta");
-						
-						String extrapolation = countryMeta.optString("extrapolation");
-						String dataPoints = countryMeta.optString("data_points");
-						
-						if (!extrapolation.equals("")) {
-							// List of data points to be included in any case, if any
-							List<Integer> listDataPoints = new ArrayList<Integer>();
-							if (!dataPoints.equals("")) {
-								JSONArray dataPointsArray = new JSONArray(dataPoints);
-								Iterator dataPointsIterator = dataPointsArray.iterator();
-								while (dataPointsIterator.hasNext()) {
-									Integer value = (Integer) dataPointsIterator.next();
-									listDataPoints.add(value);
-								}
-							}
-							
-							// List of all the years to be excluded
-							JSONArray extrapolationArray = new JSONArray(extrapolation);
-							Iterator extrapolationArrayIter = extrapolationArray.iterator();
-							while (extrapolationArrayIter.hasNext()) {
-								JSONArray extrapolationPeriod = (JSONArray) extrapolationArrayIter.next();
-								int yearStart = extrapolationPeriod.getInt(0);
-								int yearEnd = extrapolationPeriod.getInt(1);
-								
-								for (int i = yearStart; i <= yearEnd; i++) {
-									if (!listDataPoints.contains(i)) {
-										excludeYears.add(i);
-									}
-								}
-							}
-						}
-                    }
-                    
                     // Retrieve values
                     JSONArray countryValues = countryData.getJSONObject(country).getJSONArray("values");
 
@@ -303,15 +360,14 @@ public class WIDDownloader {
                         String[] parts = indicator.split("_");
                         int year = value.getInt("y");
 
-						if (!excludeYears.contains(year)) {
-                        	listCountry.add(country);
-                        	listVariable.add(parts[0]);
-                        	listPercentile.add(parts[1]);
-                        	listAge.add(parts[2]);
-                        	listPop.add(parts[3]);
-                        	listYear.add(year);
-                        	listValue.add(value.optDouble("v"));
-                        }
+                        listCountry.add(country);
+                        listVariable.add(parts[0]);
+                        listPercentile.add(parts[1]);
+                        listAge.add(parts[2]);
+                        listPop.add(parts[3]);
+                        listYear.add(year);
+                        listValue.add(value.optDouble("v"));
+                        listRowScore.add(optDoubleOrMissing(value, "dq"));
                     }
                 }
             }
@@ -324,6 +380,7 @@ public class WIDDownloader {
             Data.addVarStr("pop", 1);
             Data.addVarInt("year");
             Data.addVarDouble("value");
+            Data.addVarDouble("row_score");
 
             int obsCount = listVariable.size();
             Data.setObsCount(obsCount);
@@ -335,6 +392,7 @@ public class WIDDownloader {
             int variablePopIndex        = Data.getVarIndex("pop");
             int variableYearIndex       = Data.getVarIndex("year");
             int variableValueIndex      = Data.getVarIndex("value");
+            int variableRowScoreIndex   = Data.getVarIndex("row_score");
 
             for (int i = 0; i < obsCount; i++) {
                 Data.storeStr(variableCountryIndex,    i + 1, listCountry.get(i));
@@ -344,6 +402,7 @@ public class WIDDownloader {
                 Data.storeStr(variablePopIndex,        i + 1, listPop.get(i));
                 Data.storeNum(variableYearIndex,       i + 1, listYear.get(i));
                 Data.storeNum(variableValueIndex,      i + 1, listValue.get(i));
+                Data.storeNum(variableRowScoreIndex,   i + 1, stataMissingIfNaN(listRowScore.get(i)));
             }
         } catch (Exception e) {
             SFIToolkit.error("\nserver response invalid; if the problem persists, please file bug report to stats@wid.world\n");
@@ -404,121 +463,153 @@ public class WIDDownloader {
 
         // Parse the results
         try {
-            List<String> listVariable    = new ArrayList<String>();
-            List<String> listCountry     = new ArrayList<String>();
-            List<String> listCountryName = new ArrayList<String>();
-            List<String> listPercentile  = new ArrayList<String>();
-            List<String> listPop         = new ArrayList<String>();
-            List<String> listAge         = new ArrayList<String>();
+            List<String> listVariable     = new ArrayList<String>();
+            List<String> listCountry      = new ArrayList<String>();
+            List<String> listCountryName  = new ArrayList<String>();
+            List<String> listPercentile   = new ArrayList<String>();
+            List<String> listAgeCode      = new ArrayList<String>();
+            List<String> listPopCode      = new ArrayList<String>();
             int sizeCountryName = 1;
 
             List<String> listShortName    = new ArrayList<String>();
-            List<String> listSimpleDes    = new ArrayList<String>();
+            List<String> listShortDes     = new ArrayList<String>();
             List<String> listTechnicalDes = new ArrayList<String>();
             int sizeShortName = 1;
-            int sizeSimpleDes = 1;
+            int sizeShortDes = 1;
             int sizeTechnicalDes = 1;
 
-            List<String> listShortType = new ArrayList<String>();
-            List<String> listLongType  = new ArrayList<String>();
+            List<String> listShortType  = new ArrayList<String>();
+            List<String> listLongType   = new ArrayList<String>();
+            List<String> listOnlineDes  = new ArrayList<String>();
+            List<Double> listTypeRank   = new ArrayList<Double>();
             int sizeShortType = 1;
             int sizeLongType = 1;
+            int sizeOnlineDes = 1;
 
             List<String> listShortPop = new ArrayList<String>();
-            List<String> listLongPop  = new ArrayList<String>();
+            List<String> listPop      = new ArrayList<String>();
+            List<Double> listPopRank  = new ArrayList<Double>();
             int sizeShortPop = 1;
-            int sizeLongPop = 1;
+            int sizePop = 1;
 
             List<String> listShortAge = new ArrayList<String>();
-            List<String> listLongAge  = new ArrayList<String>();
+            List<String> listAge      = new ArrayList<String>();
+            List<Double> listAgeRank  = new ArrayList<Double>();
             int sizeShortAge = 1;
-            int sizeLongAge = 1;
+            int sizeAge = 1;
 
-            List<String> listUnit      = new ArrayList<String>();
-            List<String> listUnitLabel = new ArrayList<String>();
+            List<String> listUnit       = new ArrayList<String>();
+            List<String> listUnitName   = new ArrayList<String>();
+            List<String> listUnitSymbol = new ArrayList<String>();
             int sizeUnit = 1;
-            int sizeUnitLabel = 1;
+            int sizeUnitName = 1;
+            int sizeUnitSymbol = 1;
 
             List<String> listSource = new ArrayList<String>();
             List<String> listMethod = new ArrayList<String>();
+            List<Double> listSeriesScore = new ArrayList<Double>();
             int sizeSource = 1;
             int sizeMethod = 1;
-            
-            List<String> listDataQuality = new ArrayList<String>();
-            List<String> listImputation = new ArrayList<String>();
-            int sizeDataQuality = 1;
-            int sizeImputation = 1;
 
-            JSONArray json = new JSONArray(response).getJSONObject(0).getJSONArray("metadata_func");
+            JSONArray responseArray = new JSONArray(response);
+            JSONArray json = new JSONArray();
+            if (responseArray.length() > 0) {
+                JSONObject responseObject = responseArray.optJSONObject(0);
+                if (responseObject != null) {
+                    JSONArray metadataFunc = responseObject.optJSONArray("metadata_func");
+                    if (metadataFunc != null) {
+                        json = metadataFunc;
+                    }
+                }
+            }
 
             // First, loop over the indicator
             Iterator indicatorIter = json.iterator();
             while (indicatorIter.hasNext()) {
                 JSONObject indicator = (JSONObject) indicatorIter.next();
-                String indicatorName = JSONObject.getNames(indicator)[0];
-                JSONArray indicatorData = indicator.getJSONArray(indicatorName);
+                String indicatorName = firstObjectName(indicator);
+                if (indicatorName.length() == 0) {
+                    continue;
+                }
+
+                JSONArray indicatorData = indicator.optJSONArray(indicatorName);
+                if (indicatorData == null) {
+                    continue;
+                }
 
                 String[] parts = indicatorName.split("_");
+                if (parts.length < 4) {
+                    continue;
+                }
                 String variable = parts[0];
                 String percentile = parts[1];
-                String age = parts[2];
-                String pop = parts[3];
-                String concept = variable.substring(1, 6);
+                String ageCode = parts[2];
+                String popCode = parts[3];
+                String concept = variable.length() >= 6 ? variable.substring(1, 6) : variable;
 
-                JSONObject nameJSON  = indicatorData.getJSONObject(0).getJSONObject("name");
-                JSONObject typeJSON  = indicatorData.getJSONObject(1).getJSONObject("type");
-                JSONObject popJSON   = indicatorData.getJSONObject(2).getJSONObject("pop");
-                JSONObject ageJSON   = indicatorData.getJSONObject(3).getJSONObject("age");
-                JSONArray unitJSON   = indicatorData.getJSONObject(4).getJSONArray("units");
-                JSONObject notesJSON = indicatorData.getJSONObject(5).getJSONArray("notes").getJSONObject(0);
+                JSONObject nameJSON  = findObject(indicatorData, "name");
+                JSONObject typeJSON  = findObject(indicatorData, "type");
+                JSONObject popJSON   = findObject(indicatorData, "pop");
+                JSONObject ageJSON   = findObject(indicatorData, "age");
+                JSONArray unitJSON   = findArray(indicatorData, "units");
+                JSONArray notesArray = findArray(indicatorData, "notes");
+                JSONObject notesJSON = notesArray.length() > 0 && notesArray.optJSONObject(0) != null
+                    ? notesArray.optJSONObject(0)
+                    : new JSONObject();
 
-                String shortName = nameJSON.optString("shortname");
-                String simpleDes = nameJSON.optString("simpledes");
-                String technicalDes = nameJSON.optString("technicaldes");
+                String shortName = optString(nameJSON, "shortname");
+                String shortDes = optString(nameJSON, "shortdes");
+                if (shortDes.length() == 0) {
+                    shortDes = optString(nameJSON, "simpledes");
+                }
+                String technicalDes = optString(nameJSON, "technicaldes");
 
-                String shortType = typeJSON.optString("shortdes");
-                String longType = typeJSON.optString("longdes");
+                String shortType = optString(typeJSON, "shortdes");
+                String longType = optString(typeJSON, "longdes");
+                String onlineDes = optString(typeJSON, "onlinedes");
+                double typeRank = optDoubleOrMissing(typeJSON, "rank");
 
-                String shortPop = popJSON.optString("shortdes");
-                String longPop = popJSON.optString("longdes");
+                String shortPop = optString(popJSON, "shortdes");
+                String pop = optString(popJSON, "longdes");
+                double popRank = optDoubleOrMissing(popJSON, "rank");
 
-                String shortAge = ageJSON.optString("shortname");
-                String longAge = ageJSON.optString("fullname");
+                if (optString(ageJSON, "agecode").length() > 0) {
+                    ageCode = optString(ageJSON, "agecode");
+                }
+                String shortAge = optString(ageJSON, "shortname");
+                String age = optString(ageJSON, "fullname");
+                double ageRank = optDoubleOrMissing(ageJSON, "rank");
 
-                String country;
-                String countryName;
-
-                String unit;
-                String unitLabel;
-
-                String source = "";
-                String method = "";
-                
-                String dataQuality = "";
-                String imputation = "";
-
-                // The item "unit" (5th position) is always filled, so we use it to
-                // loop over the different countries
                 Iterator countryIter = unitJSON.iterator();
                 while (countryIter.hasNext()) {
                     JSONObject countryUnits = (JSONObject) countryIter.next();
 
-                    country = countryUnits.optString("country");
-                    countryName = countryUnits.optString("country_name");
-                    unit = countryUnits.getJSONObject("metadata").optString("unit");
-                    unitLabel = countryUnits.getJSONObject("metadata").optString("unit_name");
+                    String country = optString(countryUnits, "country");
+                    String countryName = optString(countryUnits, "country_name");
+                    JSONObject unitMetadata = countryUnits.optJSONObject("metadata");
+                    String unit = optString(unitMetadata, "unit");
+                    String unitName = optString(unitMetadata, "unit_name");
+                    String unitSymbol = optString(unitMetadata, "unit_symbol");
+                    if (unitSymbol.length() == 0) {
+                        unitSymbol = optString(unitMetadata, "symbol");
+                    }
+
+                    String source = "";
+                    String method = "";
+                    double seriesScore = Double.NaN;
                     
                     // Find matching source and method, if any
                     if (!notesJSON.isNull(concept)) {
-                        Iterator countryNotesIter = notesJSON.getJSONArray(concept).iterator();
+                        JSONArray countryNotesArray = notesJSON.optJSONArray(concept);
+                        Iterator countryNotesIter = countryNotesArray == null
+                            ? new JSONArray().iterator()
+                            : countryNotesArray.iterator();
                         while (countryNotesIter.hasNext()) {
                             JSONObject countryNotes = (JSONObject) countryNotesIter.next();
-                            if (countryNotes.optString("alpha2").equals(country)) {
-                                source = countryNotes.optString("source");
-                                method = countryNotes.optString("method");
-                                
-                                dataQuality = countryNotes.optString("data_quality");
-                                imputation = countryNotes.optString("imputation");
+                            if (optString(countryNotes, "alpha2").equals(country)) {
+                                source = optString(countryNotes, "source");
+                                method = optString(countryNotes, "method");
+                                seriesScore = optFirstDoubleOrMissing(countryNotes, "data_quality", "data_quality_score");
                                 
                                 break;
                             }
@@ -528,80 +619,51 @@ public class WIDDownloader {
                     listVariable.add(variable);
                     listPercentile.add(percentile);
                     listCountry.add(country);
-                    listAge.add(age);
-                    listPop.add(pop);
+                    listAgeCode.add(ageCode);
+                    listPopCode.add(popCode);
                     
                     listCountryName.add(countryName);
-                    if (countryName.length() > sizeCountryName) {
-                        sizeCountryName = countryName.length();
-                    }
+                    sizeCountryName = maxSize(sizeCountryName, countryName);
 
                     listShortName.add(shortName);
-                    if (shortName.length() > sizeShortName) {
-                        sizeShortName = shortName.length();
-                    }
-                    listSimpleDes.add(simpleDes);
-                    if (simpleDes.length() > sizeSimpleDes) {
-                        sizeSimpleDes = simpleDes.length();
-                    }
+                    sizeShortName = maxSize(sizeShortName, shortName);
+                    listShortDes.add(shortDes);
+                    sizeShortDes = maxSize(sizeShortDes, shortDes);
                     listTechnicalDes.add(technicalDes);
-                    if (technicalDes.length() > sizeTechnicalDes) {
-                        sizeTechnicalDes = technicalDes.length();
-                    }
+                    sizeTechnicalDes = maxSize(sizeTechnicalDes, technicalDes);
 
                     listShortType.add(shortType);
-                    if (shortType.length() > sizeShortType) {
-                        sizeShortType = shortType.length();
-                    }
+                    sizeShortType = maxSize(sizeShortType, shortType);
                     listLongType.add(longType);
-                    if (longType.length() > sizeLongType) {
-                        sizeLongType = longType.length();
-                    }
+                    sizeLongType = maxSize(sizeLongType, longType);
+                    listOnlineDes.add(onlineDes);
+                    sizeOnlineDes = maxSize(sizeOnlineDes, onlineDes);
+                    listTypeRank.add(typeRank);
 
                     listShortPop.add(shortPop);
-                    if (shortPop.length() > sizeShortPop) {
-                        sizeShortPop = shortPop.length();
-                    }
-                    listLongPop.add(longPop);
-                    if (longPop.length() > sizeLongPop) {
-                        sizeLongPop = longPop.length();
-                    }
+                    sizeShortPop = maxSize(sizeShortPop, shortPop);
+                    listPop.add(pop);
+                    sizePop = maxSize(sizePop, pop);
+                    listPopRank.add(popRank);
 
                     listShortAge.add(shortAge);
-                    if (shortAge.length() > sizeShortAge) {
-                        sizeShortAge = shortAge.length();
-                    }
-                    listLongAge.add(longAge);
-                    if (longAge.length() > sizeLongAge) {
-                        sizeLongAge = longAge.length();
-                    }
+                    sizeShortAge = maxSize(sizeShortAge, shortAge);
+                    listAge.add(age);
+                    sizeAge = maxSize(sizeAge, age);
+                    listAgeRank.add(ageRank);
 
                     listUnit.add(unit);
-                    if (unit.length() > sizeUnit) {
-                        sizeUnit = unit.length();
-                    }
-                    listUnitLabel.add(unitLabel);
-                    if (unitLabel.length() > sizeUnitLabel) {
-                        sizeUnitLabel = unitLabel.length();
-                    }
+                    sizeUnit = maxSize(sizeUnit, unit);
+                    listUnitName.add(unitName);
+                    sizeUnitName = maxSize(sizeUnitName, unitName);
+                    listUnitSymbol.add(unitSymbol);
+                    sizeUnitSymbol = maxSize(sizeUnitSymbol, unitSymbol);
 
                     listSource.add(source);
-                    if (source.length() > sizeSource) {
-                        sizeSource = source.length();
-                    }
+                    sizeSource = maxSize(sizeSource, source);
                     listMethod.add(method);
-                    if (method.length() > sizeMethod) {
-                        sizeMethod = method.length();
-                    }
-
-                    listDataQuality.add(dataQuality);
-                    if (dataQuality.length() > sizeDataQuality) {
-                    	sizeDataQuality = dataQuality.length();
-                    }
-                    listImputation.add(imputation);
-                    if (imputation.length() > sizeImputation) {
-                    	sizeImputation = imputation.length();
-                    }
+                    sizeMethod = maxSize(sizeMethod, method);
+                    listSeriesScore.add(seriesScore);
                 }
             }
 
@@ -610,30 +672,33 @@ public class WIDDownloader {
             Data.addVarStr("percentile", 14);
             Data.addVarStr("country", 5);
             Data.addVarStr("countryname", sizeCountryName);
-            Data.addVarStr("age", 3);
-            Data.addVarStr("pop", 1);
+            Data.addVarStr("agecode", 3);
+            Data.addVarStr("popcode", 1);
+
+            Data.addVarStr("unit", sizeUnit);
+            Data.addVarStr("unitname", sizeUnitName);
+            Data.addVarStr("unitsymbol", sizeUnitSymbol);
 
             Data.addVarStr("shortname", sizeShortName);
-            Data.addVarStr("simpledes", sizeSimpleDes);
+            Data.addVarStr("shortdes", sizeShortDes);
             Data.addVarStr("technicaldes", sizeTechnicalDes);
 
             Data.addVarStr("shorttype", sizeShortType);
             Data.addVarStr("longtype", sizeLongType);
+            Data.addVarStr("onlinedes", sizeOnlineDes);
+            Data.addVarDouble("type_rank");
 
             Data.addVarStr("shortpop", sizeShortPop);
-            Data.addVarStr("longpop", sizeLongPop);
+            Data.addVarStr("pop", sizePop);
+            Data.addVarDouble("pop_rank");
 
             Data.addVarStr("shortage", sizeShortAge);
-            Data.addVarStr("longage", sizeLongAge);
-
-            Data.addVarStr("unit", sizeUnit);
-            Data.addVarStr("unitlabel", sizeUnitLabel);
+            Data.addVarStr("age", sizeAge);
+            Data.addVarDouble("age_rank");
 
             Data.addVarStr("source", sizeSource);
             Data.addVarStr("method", sizeMethod);
-            
-            Data.addVarStr("data_quality", sizeDataQuality);
-            Data.addVarStr("imputation", sizeImputation);
+            Data.addVarDouble("series_score");
 
             int obsCount = listVariable.size();
             Data.setObsCount(obsCount);
@@ -642,60 +707,66 @@ public class WIDDownloader {
             int variablePercentileIndex  = Data.getVarIndex("percentile");
             int variableCountryIndex     = Data.getVarIndex("country");
             int variableCountryNameIndex = Data.getVarIndex("countryname");
-            int variableAgeIndex         = Data.getVarIndex("age");
-            int variablePopIndex         = Data.getVarIndex("pop");
+            int variableAgeCodeIndex     = Data.getVarIndex("agecode");
+            int variablePopCodeIndex     = Data.getVarIndex("popcode");
+
+            int variableUnitIndex       = Data.getVarIndex("unit");
+            int variableUnitNameIndex   = Data.getVarIndex("unitname");
+            int variableUnitSymbolIndex = Data.getVarIndex("unitsymbol");
 
             int variableShortNameIndex    = Data.getVarIndex("shortname");
-            int variableSimpleDesIndex    = Data.getVarIndex("simpledes");
+            int variableShortDesIndex     = Data.getVarIndex("shortdes");
             int variableTechnicalDesIndex = Data.getVarIndex("technicaldes");
 
             int variableShortTypeIndex = Data.getVarIndex("shorttype");
             int variableLongTypeIndex  = Data.getVarIndex("longtype");
+            int variableOnlineDesIndex = Data.getVarIndex("onlinedes");
+            int variableTypeRankIndex  = Data.getVarIndex("type_rank");
 
             int variableShortPopIndex = Data.getVarIndex("shortpop");
-            int variableLongPopIndex  = Data.getVarIndex("longpop");
+            int variablePopIndex      = Data.getVarIndex("pop");
+            int variablePopRankIndex  = Data.getVarIndex("pop_rank");
 
             int variableShortAgeIndex = Data.getVarIndex("shortage");
-            int variableLongAgeIndex  = Data.getVarIndex("longage");
-
-            int variableUnitIndex      = Data.getVarIndex("unit");
-            int variableUnitLabelIndex = Data.getVarIndex("unitlabel");
+            int variableAgeIndex      = Data.getVarIndex("age");
+            int variableAgeRankIndex  = Data.getVarIndex("age_rank");
 
             int variableSourceIndex = Data.getVarIndex("source");
             int variableMethodIndex = Data.getVarIndex("method");
-            
-            int variableDataQuality = Data.getVarIndex("data_quality");
-            int variableImputation  = Data.getVarIndex("imputation");
+            int variableSeriesScoreIndex = Data.getVarIndex("series_score");
 
             for (int i = 0; i < obsCount; i++) {
                 Data.storeStr(variableVariableIndex,    i + 1, listVariable.get(i));
                 Data.storeStr(variablePercentileIndex,  i + 1, listPercentile.get(i));
                 Data.storeStr(variableCountryIndex,     i + 1, listCountry.get(i));
                 Data.storeStr(variableCountryNameIndex, i + 1, listCountryName.get(i));
-                Data.storeStr(variableAgeIndex,         i + 1, listAge.get(i));
-                Data.storeStr(variablePopIndex,         i + 1, listPop.get(i));
+                Data.storeStr(variableAgeCodeIndex,     i + 1, listAgeCode.get(i));
+                Data.storeStr(variablePopCodeIndex,     i + 1, listPopCode.get(i));
+
+                Data.storeStr(variableUnitIndex,       i + 1, listUnit.get(i));
+                Data.storeStr(variableUnitNameIndex,   i + 1, listUnitName.get(i));
+                Data.storeStr(variableUnitSymbolIndex, i + 1, listUnitSymbol.get(i));
 
                 Data.storeStr(variableShortNameIndex,    i + 1, listShortName.get(i));
-                Data.storeStr(variableSimpleDesIndex,    i + 1, listSimpleDes.get(i));
+                Data.storeStr(variableShortDesIndex,     i + 1, listShortDes.get(i));
                 Data.storeStr(variableTechnicalDesIndex, i + 1, listTechnicalDes.get(i));
 
                 Data.storeStr(variableShortTypeIndex, i + 1, listShortType.get(i));
                 Data.storeStr(variableLongTypeIndex,  i + 1, listLongType.get(i));
+                Data.storeStr(variableOnlineDesIndex, i + 1, listOnlineDes.get(i));
+                Data.storeNum(variableTypeRankIndex,  i + 1, stataMissingIfNaN(listTypeRank.get(i)));
 
                 Data.storeStr(variableShortPopIndex, i + 1, listShortPop.get(i));
-                Data.storeStr(variableLongPopIndex,  i + 1, listLongPop.get(i));
+                Data.storeStr(variablePopIndex,      i + 1, listPop.get(i));
+                Data.storeNum(variablePopRankIndex,  i + 1, stataMissingIfNaN(listPopRank.get(i)));
 
                 Data.storeStr(variableShortAgeIndex, i + 1, listShortAge.get(i));
-                Data.storeStr(variableLongAgeIndex,  i + 1, listLongAge.get(i));
-
-                Data.storeStr(variableUnitIndex,      i + 1, listUnit.get(i));
-                Data.storeStr(variableUnitLabelIndex, i + 1, listUnitLabel.get(i));
+                Data.storeStr(variableAgeIndex,      i + 1, listAge.get(i));
+                Data.storeNum(variableAgeRankIndex,  i + 1, stataMissingIfNaN(listAgeRank.get(i)));
 
                 Data.storeStr(variableSourceIndex, i + 1, listSource.get(i));
                 Data.storeStr(variableMethodIndex, i + 1, listMethod.get(i));
-                
-                Data.storeStr(variableDataQuality, i + 1, listDataQuality.get(i));
-                Data.storeStr(variableImputation,  i + 1, listImputation.get(i));
+                Data.storeNum(variableSeriesScoreIndex, i + 1, stataMissingIfNaN(listSeriesScore.get(i)));
             }
         } catch (Exception e) {
             SFIToolkit.error("\nserver response invalid; if the problem persists, please file bug report to stats@wid.world\n");

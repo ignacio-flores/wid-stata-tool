@@ -4,8 +4,7 @@
 
 clear all
 
-*global root "~/GitHub/wid-stata-tool"
-global root "~/Dropbox/wid-package"
+global root "/Users/iflores/Documents/GitHub/wid-stata-tool"
 
 cd "$root"
 sysdir set PERSONAL "$root"
@@ -39,6 +38,16 @@ assert inrange(year, 1990, 2000)
 assert substr(variable, 10, 1) == "j"
 assert substr(variable, 7, 3) == "992"
 assert substr(variable, 1, 6) == "sptinc"
+capture confirm variable row_score
+assert _rc
+capture confirm variable series_score
+assert _rc
+capture confirm variable quality
+assert _rc
+capture confirm variable data_quality
+assert _rc
+capture confirm variable imputation
+assert _rc
 
 // -------------------------------------------------------------------------- //
 // We can download population data
@@ -57,38 +66,77 @@ assert inlist(substr(variable, 10, 1), "i", "f", "m")
 
 wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) metadata clear
 
+// The R-tool broader internal metadata schema is:
+// variable unit unitname unitsymbol shortname shortdes technicaldes shorttype
+// longtype onlinedes type_rank shortpop pop pop_rank agecode shortage age
+// age_rank country countryname method source series_score
+// Deliberate public Stata difference: download output uses the compact schema
+// below and keeps row-level observations, percentile, year, value, and row_score.
+local compact_schema country countryname variable percentile year value shortname shortdes pop age source row_score series_score method
+ds
+assert "`r(varlist)'" == "`compact_schema'"
 assert country == "FR"
 assert countryname == "France"
 assert variable == "sptinc992j"
 assert percentile == "p99p100"
-assert data_quality == "4"
-assert imputation == "surveys and tax data"
+capture confirm numeric variable row_score
+assert !_rc
+capture confirm numeric variable series_score
+assert !_rc
+capture confirm variable quality
+assert _rc
+capture confirm variable data_quality
+assert _rc
+capture confirm variable imputation
+assert _rc
 
 // -------------------------------------------------------------------------- //
-// We can exclude extrapolations/interpolations
+// Metadata requests vary by age/pop but not by percentile
 // -------------------------------------------------------------------------- //
 
-wid, areas(MZ) indicator(sptinc) perc(p99p100) age(992) pop(j) exclude clear
+wid, areas(FR) indicator(sptinc) perc(p90p100 p99p100) age(992 999) pop(j) metadata clear
 
-assert country == "MZ"
-assert variable == "sptinc992j"
-assert percentile == "p99p100"
-
-tempfile mz_excl
-save "`mz_excl'"
-
-wid, areas(MZ) indicator(sptinc) perc(p99p100) age(992) pop(j) clear
-
-assert country == "MZ"
-assert variable == "sptinc992j"
-assert percentile == "p99p100"
-
-merge 1:1 country variable percentile year value age pop using "`mz_excl'", update
-
-assert inlist(_merge, 1, 3)
-
-count if _merge == 1
+assert inlist(variable, "sptinc992j", "sptinc999j")
+assert inlist(percentile, "p90p100", "p99p100")
+count if variable == "sptinc992j"
+assert r(N) > 0
+count if variable == "sptinc999j"
 assert r(N) > 0
 
-count if _merge == 3
-assert r(N) > 0
+// -------------------------------------------------------------------------- //
+// score_filter can filter row_score without public metadata
+// -------------------------------------------------------------------------- //
+
+wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) years(2010/2018) score_filter(5) clear
+
+assert !missing(row_score) & row_score >= 5
+capture confirm variable series_score
+assert _rc
+capture confirm variable countryname
+assert _rc
+
+// -------------------------------------------------------------------------- //
+// score_filter can use series_score internally without full metadata output
+// -------------------------------------------------------------------------- //
+
+wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) years(2010/2018) score_filter(series_score=0 5) clear
+
+capture confirm numeric variable series_score
+assert !_rc
+capture confirm variable countryname
+assert _rc
+capture confirm variable shortname
+assert _rc
+
+// -------------------------------------------------------------------------- //
+// Invalid score filters fail before API requests
+// -------------------------------------------------------------------------- //
+
+capture noisily wid, areas(FR) indicator(sptinc) score_filter(row_score=6) clear
+assert _rc == 198
+
+capture noisily wid, areas(FR) indicator(sptinc) score_filter(series_score=5 3) clear
+assert _rc == 198
+
+capture noisily wid, areas(FR) indicator(sptinc) score_filter(quality=3) clear
+assert _rc == 198
