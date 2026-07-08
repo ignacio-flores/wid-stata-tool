@@ -70,8 +70,8 @@ wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) metadata clear
 // variable unit unitname unitsymbol shortname shortdes technicaldes shorttype
 // longtype onlinedes type_rank shortpop pop pop_rank agecode shortage age
 // age_rank country countryname method source series_score
-// Deliberate public Stata difference: download output uses the compact schema
-// below and keeps row-level observations, percentile, year, value, and row_score.
+// Deliberate Stata difference: download output uses the compact schema below
+// and does not materialize broader metadata fields that are not returned.
 local compact_schema country countryname variable percentile year value shortname shortdes pop age source row_score series_score method
 ds
 assert "`r(varlist)'" == "`compact_schema'"

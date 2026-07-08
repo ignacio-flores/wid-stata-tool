@@ -419,6 +419,8 @@ public class WIDDownloader {
         String countries = args[0];
         String variables = args[1];
         String verbosity = args[2];  
+        String mode = args.length > 3 ? args[3] : "compact";
+        boolean scoreOnly = "score_only".equalsIgnoreCase(mode);
 
         // Create the query
         String query;
@@ -471,39 +473,16 @@ public class WIDDownloader {
             List<String> listPopCode      = new ArrayList<String>();
             int sizeCountryName = 1;
 
-            List<String> listShortName    = new ArrayList<String>();
-            List<String> listShortDes     = new ArrayList<String>();
-            List<String> listTechnicalDes = new ArrayList<String>();
+            List<String> listShortName = new ArrayList<String>();
+            List<String> listShortDes  = new ArrayList<String>();
             int sizeShortName = 1;
             int sizeShortDes = 1;
-            int sizeTechnicalDes = 1;
 
-            List<String> listShortType  = new ArrayList<String>();
-            List<String> listLongType   = new ArrayList<String>();
-            List<String> listOnlineDes  = new ArrayList<String>();
-            List<Double> listTypeRank   = new ArrayList<Double>();
-            int sizeShortType = 1;
-            int sizeLongType = 1;
-            int sizeOnlineDes = 1;
-
-            List<String> listShortPop = new ArrayList<String>();
-            List<String> listPop      = new ArrayList<String>();
-            List<Double> listPopRank  = new ArrayList<Double>();
-            int sizeShortPop = 1;
+            List<String> listPop = new ArrayList<String>();
             int sizePop = 1;
 
-            List<String> listShortAge = new ArrayList<String>();
-            List<String> listAge      = new ArrayList<String>();
-            List<Double> listAgeRank  = new ArrayList<Double>();
-            int sizeShortAge = 1;
+            List<String> listAge = new ArrayList<String>();
             int sizeAge = 1;
-
-            List<String> listUnit       = new ArrayList<String>();
-            List<String> listUnitName   = new ArrayList<String>();
-            List<String> listUnitSymbol = new ArrayList<String>();
-            int sizeUnit = 1;
-            int sizeUnitName = 1;
-            int sizeUnitSymbol = 1;
 
             List<String> listSource = new ArrayList<String>();
             List<String> listMethod = new ArrayList<String>();
@@ -547,10 +526,9 @@ public class WIDDownloader {
                 String popCode = parts[3];
                 String concept = variable.length() >= 6 ? variable.substring(1, 6) : variable;
 
-                JSONObject nameJSON  = findObject(indicatorData, "name");
-                JSONObject typeJSON  = findObject(indicatorData, "type");
-                JSONObject popJSON   = findObject(indicatorData, "pop");
-                JSONObject ageJSON   = findObject(indicatorData, "age");
+                JSONObject nameJSON = scoreOnly ? new JSONObject() : findObject(indicatorData, "name");
+                JSONObject popJSON  = scoreOnly ? new JSONObject() : findObject(indicatorData, "pop");
+                JSONObject ageJSON  = scoreOnly ? new JSONObject() : findObject(indicatorData, "age");
                 JSONArray unitJSON   = findArray(indicatorData, "units");
                 JSONArray notesArray = findArray(indicatorData, "notes");
                 JSONObject notesJSON = notesArray.length() > 0 && notesArray.optJSONObject(0) != null
@@ -562,23 +540,13 @@ public class WIDDownloader {
                 if (shortDes.length() == 0) {
                     shortDes = optString(nameJSON, "simpledes");
                 }
-                String technicalDes = optString(nameJSON, "technicaldes");
 
-                String shortType = optString(typeJSON, "shortdes");
-                String longType = optString(typeJSON, "longdes");
-                String onlineDes = optString(typeJSON, "onlinedes");
-                double typeRank = optDoubleOrMissing(typeJSON, "rank");
-
-                String shortPop = optString(popJSON, "shortdes");
                 String pop = optString(popJSON, "longdes");
-                double popRank = optDoubleOrMissing(popJSON, "rank");
 
                 if (optString(ageJSON, "agecode").length() > 0) {
                     ageCode = optString(ageJSON, "agecode");
                 }
-                String shortAge = optString(ageJSON, "shortname");
                 String age = optString(ageJSON, "fullname");
-                double ageRank = optDoubleOrMissing(ageJSON, "rank");
 
                 Iterator countryIter = unitJSON.iterator();
                 while (countryIter.hasNext()) {
@@ -586,13 +554,6 @@ public class WIDDownloader {
 
                     String country = optString(countryUnits, "country");
                     String countryName = optString(countryUnits, "country_name");
-                    JSONObject unitMetadata = countryUnits.optJSONObject("metadata");
-                    String unit = optString(unitMetadata, "unit");
-                    String unitName = optString(unitMetadata, "unit_name");
-                    String unitSymbol = optString(unitMetadata, "unit_symbol");
-                    if (unitSymbol.length() == 0) {
-                        unitSymbol = optString(unitMetadata, "symbol");
-                    }
 
                     String source = "";
                     String method = "";
@@ -607,8 +568,10 @@ public class WIDDownloader {
                         while (countryNotesIter.hasNext()) {
                             JSONObject countryNotes = (JSONObject) countryNotesIter.next();
                             if (optString(countryNotes, "alpha2").equals(country)) {
-                                source = optString(countryNotes, "source");
-                                method = optString(countryNotes, "method");
+                                if (!scoreOnly) {
+                                    source = optString(countryNotes, "source");
+                                    method = optString(countryNotes, "method");
+                                }
                                 seriesScore = optFirstDoubleOrMissing(countryNotes, "data_quality", "data_quality_score");
                                 
                                 break;
@@ -621,49 +584,28 @@ public class WIDDownloader {
                     listCountry.add(country);
                     listAgeCode.add(ageCode);
                     listPopCode.add(popCode);
-                    
-                    listCountryName.add(countryName);
-                    sizeCountryName = maxSize(sizeCountryName, countryName);
-
-                    listShortName.add(shortName);
-                    sizeShortName = maxSize(sizeShortName, shortName);
-                    listShortDes.add(shortDes);
-                    sizeShortDes = maxSize(sizeShortDes, shortDes);
-                    listTechnicalDes.add(technicalDes);
-                    sizeTechnicalDes = maxSize(sizeTechnicalDes, technicalDes);
-
-                    listShortType.add(shortType);
-                    sizeShortType = maxSize(sizeShortType, shortType);
-                    listLongType.add(longType);
-                    sizeLongType = maxSize(sizeLongType, longType);
-                    listOnlineDes.add(onlineDes);
-                    sizeOnlineDes = maxSize(sizeOnlineDes, onlineDes);
-                    listTypeRank.add(typeRank);
-
-                    listShortPop.add(shortPop);
-                    sizeShortPop = maxSize(sizeShortPop, shortPop);
-                    listPop.add(pop);
-                    sizePop = maxSize(sizePop, pop);
-                    listPopRank.add(popRank);
-
-                    listShortAge.add(shortAge);
-                    sizeShortAge = maxSize(sizeShortAge, shortAge);
-                    listAge.add(age);
-                    sizeAge = maxSize(sizeAge, age);
-                    listAgeRank.add(ageRank);
-
-                    listUnit.add(unit);
-                    sizeUnit = maxSize(sizeUnit, unit);
-                    listUnitName.add(unitName);
-                    sizeUnitName = maxSize(sizeUnitName, unitName);
-                    listUnitSymbol.add(unitSymbol);
-                    sizeUnitSymbol = maxSize(sizeUnitSymbol, unitSymbol);
-
-                    listSource.add(source);
-                    sizeSource = maxSize(sizeSource, source);
-                    listMethod.add(method);
-                    sizeMethod = maxSize(sizeMethod, method);
                     listSeriesScore.add(seriesScore);
+
+                    if (!scoreOnly) {
+                        listCountryName.add(countryName);
+                        sizeCountryName = maxSize(sizeCountryName, countryName);
+
+                        listShortName.add(shortName);
+                        sizeShortName = maxSize(sizeShortName, shortName);
+                        listShortDes.add(shortDes);
+                        sizeShortDes = maxSize(sizeShortDes, shortDes);
+
+                        listPop.add(pop);
+                        sizePop = maxSize(sizePop, pop);
+
+                        listAge.add(age);
+                        sizeAge = maxSize(sizeAge, age);
+
+                        listSource.add(source);
+                        sizeSource = maxSize(sizeSource, source);
+                        listMethod.add(method);
+                        sizeMethod = maxSize(sizeMethod, method);
+                    }
                 }
             }
 
@@ -671,34 +613,19 @@ public class WIDDownloader {
             Data.addVarStr("variable", 6);
             Data.addVarStr("percentile", 14);
             Data.addVarStr("country", 5);
-            Data.addVarStr("countryname", sizeCountryName);
             Data.addVarStr("agecode", 3);
             Data.addVarStr("popcode", 1);
-
-            Data.addVarStr("unit", sizeUnit);
-            Data.addVarStr("unitname", sizeUnitName);
-            Data.addVarStr("unitsymbol", sizeUnitSymbol);
-
-            Data.addVarStr("shortname", sizeShortName);
-            Data.addVarStr("shortdes", sizeShortDes);
-            Data.addVarStr("technicaldes", sizeTechnicalDes);
-
-            Data.addVarStr("shorttype", sizeShortType);
-            Data.addVarStr("longtype", sizeLongType);
-            Data.addVarStr("onlinedes", sizeOnlineDes);
-            Data.addVarDouble("type_rank");
-
-            Data.addVarStr("shortpop", sizeShortPop);
-            Data.addVarStr("pop", sizePop);
-            Data.addVarDouble("pop_rank");
-
-            Data.addVarStr("shortage", sizeShortAge);
-            Data.addVarStr("age", sizeAge);
-            Data.addVarDouble("age_rank");
-
-            Data.addVarStr("source", sizeSource);
-            Data.addVarStr("method", sizeMethod);
             Data.addVarDouble("series_score");
+
+            if (!scoreOnly) {
+                Data.addVarStr("countryname", sizeCountryName);
+                Data.addVarStr("shortname", sizeShortName);
+                Data.addVarStr("shortdes", sizeShortDes);
+                Data.addVarStr("pop", sizePop);
+                Data.addVarStr("age", sizeAge);
+                Data.addVarStr("source", sizeSource);
+                Data.addVarStr("method", sizeMethod);
+            }
 
             int obsCount = listVariable.size();
             Data.setObsCount(obsCount);
@@ -706,67 +633,34 @@ public class WIDDownloader {
             int variableVariableIndex    = Data.getVarIndex("variable");
             int variablePercentileIndex  = Data.getVarIndex("percentile");
             int variableCountryIndex     = Data.getVarIndex("country");
-            int variableCountryNameIndex = Data.getVarIndex("countryname");
             int variableAgeCodeIndex     = Data.getVarIndex("agecode");
             int variablePopCodeIndex     = Data.getVarIndex("popcode");
-
-            int variableUnitIndex       = Data.getVarIndex("unit");
-            int variableUnitNameIndex   = Data.getVarIndex("unitname");
-            int variableUnitSymbolIndex = Data.getVarIndex("unitsymbol");
-
-            int variableShortNameIndex    = Data.getVarIndex("shortname");
-            int variableShortDesIndex     = Data.getVarIndex("shortdes");
-            int variableTechnicalDesIndex = Data.getVarIndex("technicaldes");
-
-            int variableShortTypeIndex = Data.getVarIndex("shorttype");
-            int variableLongTypeIndex  = Data.getVarIndex("longtype");
-            int variableOnlineDesIndex = Data.getVarIndex("onlinedes");
-            int variableTypeRankIndex  = Data.getVarIndex("type_rank");
-
-            int variableShortPopIndex = Data.getVarIndex("shortpop");
-            int variablePopIndex      = Data.getVarIndex("pop");
-            int variablePopRankIndex  = Data.getVarIndex("pop_rank");
-
-            int variableShortAgeIndex = Data.getVarIndex("shortage");
-            int variableAgeIndex      = Data.getVarIndex("age");
-            int variableAgeRankIndex  = Data.getVarIndex("age_rank");
-
-            int variableSourceIndex = Data.getVarIndex("source");
-            int variableMethodIndex = Data.getVarIndex("method");
             int variableSeriesScoreIndex = Data.getVarIndex("series_score");
+            int variableCountryNameIndex = scoreOnly ? -1 : Data.getVarIndex("countryname");
+            int variableShortNameIndex   = scoreOnly ? -1 : Data.getVarIndex("shortname");
+            int variableShortDesIndex    = scoreOnly ? -1 : Data.getVarIndex("shortdes");
+            int variablePopIndex         = scoreOnly ? -1 : Data.getVarIndex("pop");
+            int variableAgeIndex         = scoreOnly ? -1 : Data.getVarIndex("age");
+            int variableSourceIndex      = scoreOnly ? -1 : Data.getVarIndex("source");
+            int variableMethodIndex      = scoreOnly ? -1 : Data.getVarIndex("method");
 
             for (int i = 0; i < obsCount; i++) {
                 Data.storeStr(variableVariableIndex,    i + 1, listVariable.get(i));
                 Data.storeStr(variablePercentileIndex,  i + 1, listPercentile.get(i));
                 Data.storeStr(variableCountryIndex,     i + 1, listCountry.get(i));
-                Data.storeStr(variableCountryNameIndex, i + 1, listCountryName.get(i));
                 Data.storeStr(variableAgeCodeIndex,     i + 1, listAgeCode.get(i));
                 Data.storeStr(variablePopCodeIndex,     i + 1, listPopCode.get(i));
-
-                Data.storeStr(variableUnitIndex,       i + 1, listUnit.get(i));
-                Data.storeStr(variableUnitNameIndex,   i + 1, listUnitName.get(i));
-                Data.storeStr(variableUnitSymbolIndex, i + 1, listUnitSymbol.get(i));
-
-                Data.storeStr(variableShortNameIndex,    i + 1, listShortName.get(i));
-                Data.storeStr(variableShortDesIndex,     i + 1, listShortDes.get(i));
-                Data.storeStr(variableTechnicalDesIndex, i + 1, listTechnicalDes.get(i));
-
-                Data.storeStr(variableShortTypeIndex, i + 1, listShortType.get(i));
-                Data.storeStr(variableLongTypeIndex,  i + 1, listLongType.get(i));
-                Data.storeStr(variableOnlineDesIndex, i + 1, listOnlineDes.get(i));
-                Data.storeNum(variableTypeRankIndex,  i + 1, stataMissingIfNaN(listTypeRank.get(i)));
-
-                Data.storeStr(variableShortPopIndex, i + 1, listShortPop.get(i));
-                Data.storeStr(variablePopIndex,      i + 1, listPop.get(i));
-                Data.storeNum(variablePopRankIndex,  i + 1, stataMissingIfNaN(listPopRank.get(i)));
-
-                Data.storeStr(variableShortAgeIndex, i + 1, listShortAge.get(i));
-                Data.storeStr(variableAgeIndex,      i + 1, listAge.get(i));
-                Data.storeNum(variableAgeRankIndex,  i + 1, stataMissingIfNaN(listAgeRank.get(i)));
-
-                Data.storeStr(variableSourceIndex, i + 1, listSource.get(i));
-                Data.storeStr(variableMethodIndex, i + 1, listMethod.get(i));
                 Data.storeNum(variableSeriesScoreIndex, i + 1, stataMissingIfNaN(listSeriesScore.get(i)));
+
+                if (!scoreOnly) {
+                    Data.storeStr(variableCountryNameIndex, i + 1, listCountryName.get(i));
+                    Data.storeStr(variableShortNameIndex,   i + 1, listShortName.get(i));
+                    Data.storeStr(variableShortDesIndex,    i + 1, listShortDes.get(i));
+                    Data.storeStr(variablePopIndex,         i + 1, listPop.get(i));
+                    Data.storeStr(variableAgeIndex,         i + 1, listAge.get(i));
+                    Data.storeStr(variableSourceIndex,      i + 1, listSource.get(i));
+                    Data.storeStr(variableMethodIndex,      i + 1, listMethod.get(i));
+                }
             }
         } catch (Exception e) {
             SFIToolkit.error("\nserver response invalid; if the problem persists, please file bug report to stats@wid.world\n");

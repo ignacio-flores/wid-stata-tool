@@ -366,6 +366,10 @@ program wid
 		else {
 			display as text "* Download the metadata for score filtering...", _continue
 		}
+		local metadata_mode "compact"
+		if ("`metadata'" == "") {
+			local metadata_mode "score_only"
+		}
 		
 		// Metadata are percentile-invariant, but vary by country, indicator,
 		// age category, and population category.
@@ -384,7 +388,7 @@ program wid
 			quietly levelsof country if (chunk == `c'), separate(",") local(areas_list) clean
 			
 			clear
-			javacall com.wid.WIDDownloader importCountriesVariablesMetadata, args("`areas_list'" "`variables_list'" "`verbosity'")  jars("wid.jar" "json-20180813.jar" "sfi-api.jar")
+			javacall com.wid.WIDDownloader importCountriesVariablesMetadata, args("`areas_list'" "`variables_list'" "`verbosity'" "`metadata_mode'")  jars("wid.jar" "json-20180813.jar" "sfi-api.jar")
 			
 			// Pass if the dataset is empty (can happen with metadata)
 			quietly count
