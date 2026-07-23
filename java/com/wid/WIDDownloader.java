@@ -310,7 +310,7 @@ public class WIDDownloader {
             List<String>  listPop        = new ArrayList<String>();
             List<Integer> listYear       = new ArrayList<Integer>();
             List<Double>  listValue      = new ArrayList<Double>();
-            List<Double>  listRowScore   = new ArrayList<Double>();
+            List<Double>  listDataQuality = new ArrayList<Double>();
 
             JSONObject json = new JSONObject(response);
 
@@ -367,7 +367,7 @@ public class WIDDownloader {
                         listPop.add(parts[3]);
                         listYear.add(year);
                         listValue.add(value.optDouble("v"));
-                        listRowScore.add(optDoubleOrMissing(value, "dq"));
+                        listDataQuality.add(optDoubleOrMissing(value, "dq"));
                     }
                 }
             }
@@ -380,7 +380,7 @@ public class WIDDownloader {
             Data.addVarStr("pop", 1);
             Data.addVarInt("year");
             Data.addVarDouble("value");
-            Data.addVarDouble("row_score");
+            Data.addVarDouble("data_quality");
 
             int obsCount = listVariable.size();
             Data.setObsCount(obsCount);
@@ -392,7 +392,7 @@ public class WIDDownloader {
             int variablePopIndex        = Data.getVarIndex("pop");
             int variableYearIndex       = Data.getVarIndex("year");
             int variableValueIndex      = Data.getVarIndex("value");
-            int variableRowScoreIndex   = Data.getVarIndex("row_score");
+            int variableDataQualityIndex = Data.getVarIndex("data_quality");
 
             for (int i = 0; i < obsCount; i++) {
                 Data.storeStr(variableCountryIndex,    i + 1, listCountry.get(i));
@@ -402,7 +402,7 @@ public class WIDDownloader {
                 Data.storeStr(variablePopIndex,        i + 1, listPop.get(i));
                 Data.storeNum(variableYearIndex,       i + 1, listYear.get(i));
                 Data.storeNum(variableValueIndex,      i + 1, listValue.get(i));
-                Data.storeNum(variableRowScoreIndex,   i + 1, stataMissingIfNaN(listRowScore.get(i)));
+                Data.storeNum(variableDataQualityIndex, i + 1, stataMissingIfNaN(listDataQuality.get(i)));
             }
         } catch (Exception e) {
             SFIToolkit.error("\nserver response invalid; if the problem persists, please file bug report to stats@wid.world\n");
@@ -486,7 +486,7 @@ public class WIDDownloader {
 
             List<String> listSource = new ArrayList<String>();
             List<String> listMethod = new ArrayList<String>();
-            List<Double> listSeriesScore = new ArrayList<Double>();
+            List<Double> listAvgQuality = new ArrayList<Double>();
             int sizeSource = 1;
             int sizeMethod = 1;
 
@@ -557,7 +557,7 @@ public class WIDDownloader {
 
                     String source = "";
                     String method = "";
-                    double seriesScore = Double.NaN;
+                    double avgQuality = Double.NaN;
                     
                     // Find matching source and method, if any
                     if (!notesJSON.isNull(concept)) {
@@ -572,7 +572,7 @@ public class WIDDownloader {
                                     source = optString(countryNotes, "source");
                                     method = optString(countryNotes, "method");
                                 }
-                                seriesScore = optFirstDoubleOrMissing(countryNotes, "data_quality", "data_quality_score");
+                                avgQuality = optFirstDoubleOrMissing(countryNotes, "data_quality", "data_quality_score");
                                 
                                 break;
                             }
@@ -584,7 +584,7 @@ public class WIDDownloader {
                     listCountry.add(country);
                     listAgeCode.add(ageCode);
                     listPopCode.add(popCode);
-                    listSeriesScore.add(seriesScore);
+                    listAvgQuality.add(avgQuality);
 
                     if (!scoreOnly) {
                         listCountryName.add(countryName);
@@ -615,7 +615,7 @@ public class WIDDownloader {
             Data.addVarStr("country", 5);
             Data.addVarStr("agecode", 3);
             Data.addVarStr("popcode", 1);
-            Data.addVarDouble("series_score");
+            Data.addVarDouble("avg_quality");
 
             if (!scoreOnly) {
                 Data.addVarStr("countryname", sizeCountryName);
@@ -635,7 +635,7 @@ public class WIDDownloader {
             int variableCountryIndex     = Data.getVarIndex("country");
             int variableAgeCodeIndex     = Data.getVarIndex("agecode");
             int variablePopCodeIndex     = Data.getVarIndex("popcode");
-            int variableSeriesScoreIndex = Data.getVarIndex("series_score");
+            int variableAvgQualityIndex  = Data.getVarIndex("avg_quality");
             int variableCountryNameIndex = scoreOnly ? -1 : Data.getVarIndex("countryname");
             int variableShortNameIndex   = scoreOnly ? -1 : Data.getVarIndex("shortname");
             int variableShortDesIndex    = scoreOnly ? -1 : Data.getVarIndex("shortdes");
@@ -650,7 +650,7 @@ public class WIDDownloader {
                 Data.storeStr(variableCountryIndex,     i + 1, listCountry.get(i));
                 Data.storeStr(variableAgeCodeIndex,     i + 1, listAgeCode.get(i));
                 Data.storeStr(variablePopCodeIndex,     i + 1, listPopCode.get(i));
-                Data.storeNum(variableSeriesScoreIndex, i + 1, stataMissingIfNaN(listSeriesScore.get(i)));
+                Data.storeNum(variableAvgQualityIndex, i + 1, stataMissingIfNaN(listAvgQuality.get(i)));
 
                 if (!scoreOnly) {
                     Data.storeStr(variableCountryNameIndex, i + 1, listCountryName.get(i));

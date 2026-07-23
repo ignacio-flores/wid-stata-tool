@@ -21,6 +21,10 @@ assert inlist(substr(variable, 1, 6), "aptinc", "inyixx", "xlcusp")
 duplicates tag country variable percentile year, gen(dup)
 assert dup == 0
 drop dup
+capture confirm numeric variable data_quality
+assert !_rc
+capture confirm variable avg_quality
+assert _rc
 capture confirm variable row_score
 assert _rc
 capture confirm variable series_score
@@ -43,6 +47,10 @@ assert inrange(year, 1990, 2000)
 assert substr(variable, 10, 1) == "j"
 assert substr(variable, 7, 3) == "992"
 assert substr(variable, 1, 6) == "sptinc"
+capture confirm numeric variable data_quality
+assert !_rc
+capture confirm variable avg_quality
+assert _rc
 capture confirm variable row_score
 assert _rc
 capture confirm variable series_score

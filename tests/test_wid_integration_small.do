@@ -12,16 +12,22 @@ if "$root" == "" {
 cd "$root"
 sysdir set PERSONAL "$root"
 
-// Plain output stays minimal
+// Plain output includes row-level data quality
 wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) years(2010/2012) clear
 
-local base_schema country variable percentile year value age pop
+local base_schema country variable percentile year value age pop data_quality
 ds
 assert "`r(varlist)'" == "`base_schema'"
 assert country == "FR"
 assert variable == "sptinc992j"
 assert percentile == "p99p100"
 assert inrange(year, 2010, 2012)
+capture confirm numeric variable data_quality
+assert !_rc
+count if !missing(data_quality)
+assert r(N) > 0
+capture confirm variable avg_quality
+assert _rc
 capture confirm variable row_score
 assert _rc
 capture confirm variable series_score
@@ -30,15 +36,20 @@ capture confirm variable countryname
 assert _rc
 capture confirm variable quality
 assert _rc
-capture confirm variable data_quality
-assert _rc
 capture confirm variable imputation
 assert _rc
+
+tempfile plain_quality
+preserve
+keep country variable percentile year data_quality
+rename data_quality plain_data_quality
+quietly save "`plain_quality'"
+restore
 
 // Metadata output uses the compact public schema
 wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) years(2010/2012) metadata clear
 
-local compact_schema country countryname variable percentile year value shortname shortdes pop age source row_score series_score method
+local compact_schema country countryname variable percentile year value shortname shortdes pop age source data_quality avg_quality method
 ds
 assert "`r(varlist)'" == "`compact_schema'"
 assert country == "FR"
@@ -46,13 +57,17 @@ assert countryname == "France"
 assert variable == "sptinc992j"
 assert percentile == "p99p100"
 assert inrange(year, 2010, 2012)
-capture confirm numeric variable row_score
+capture confirm numeric variable data_quality
 assert !_rc
-capture confirm numeric variable series_score
+capture confirm numeric variable avg_quality
 assert !_rc
-capture confirm variable quality
+count if !missing(avg_quality)
+assert r(N) > 0
+capture confirm variable row_score
 assert _rc
-capture confirm variable data_quality
+capture confirm variable series_score
+assert _rc
+capture confirm variable quality
 assert _rc
 capture confirm variable imputation
 assert _rc
@@ -60,6 +75,10 @@ foreach v in unit unitname unitsymbol technicaldes shorttype longtype onlinedes 
 	capture confirm variable `v'
 	assert _rc
 }
+
+quietly merge 1:1 country variable percentile year using "`plain_quality'", assert(match) nogenerate
+assert data_quality == plain_data_quality | (missing(data_quality) & missing(plain_data_quality))
+drop plain_data_quality
 
 // Metadata is percentile-invariant but still joins to every percentile row
 wid, areas(FR) indicator(sptinc) perc(p90p100 p99p100) age(992) pop(j) years(2010/2012) metadata clear
@@ -97,37 +116,40 @@ assert inlist(country, "FR", "US")
 assert countryname == "France" if country == "FR"
 count if country == "US" & countryname != ""
 assert r(N) > 0
-capture confirm numeric variable series_score
+capture confirm numeric variable avg_quality
 assert !_rc
 count if country == "FR"
 assert r(N) > 0
 count if country == "US"
 assert r(N) > 0
 
-// Row score filters expose only row_score, not full metadata
+// Unnamed filters apply to data_quality without exposing full metadata
 wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) years(2010/2018) score_filter(5) clear
 
-assert !missing(row_score) & row_score >= 5
-capture confirm variable series_score
+assert !missing(data_quality) & data_quality >= 5
+capture confirm variable avg_quality
 assert _rc
 capture confirm variable countryname
 assert _rc
 
-wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) years(2010/2018) score_filter(row_score=5 5) clear
+wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) years(2010/2018) score_filter(data_quality=5 5) clear
 
-assert !missing(row_score) & row_score == 5
+assert !missing(data_quality) & data_quality == 5
 
-wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) years(2010/2018) score_filter(row_score={min:5,max:5}) clear
+wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) years(2010/2018) score_filter(data_quality={min:5,max:5}) clear
 
-assert !missing(row_score) & row_score == 5
+assert !missing(data_quality) & data_quality == 5
 
-// series_score filtering fetches metadata internally but does not expose full metadata
-wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) years(2010/2018) score_filter(series_score=0 5) clear
+// avg_quality filtering fetches metadata internally but does not expose full metadata
+wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) years(2010/2018) score_filter(avg_quality=0 5) clear
 
-capture confirm numeric variable series_score
+capture confirm numeric variable avg_quality
 assert !_rc
-capture confirm variable row_score
-assert _rc
+capture confirm numeric variable data_quality
+assert !_rc
+count
+assert r(N) > 0
+assert !missing(avg_quality) & inrange(avg_quality, 0, 5)
 capture confirm variable countryname
 assert _rc
 capture confirm variable shortname
@@ -136,24 +158,23 @@ capture confirm variable source
 assert _rc
 
 // Combined filters expose both scores and enforce both conditions
-wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) years(2010/2018) score_filter(row_score=5 5; series_score=0 5) clear
+wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) years(2010/2018) score_filter(data_quality=5 5; avg_quality=0 5) clear
 
-capture confirm numeric variable row_score
+capture confirm numeric variable data_quality
 assert !_rc
-capture confirm numeric variable series_score
+capture confirm numeric variable avg_quality
 assert !_rc
 count
 if (r(N) > 0) {
-	assert !missing(row_score) & row_score == 5
-	assert !missing(series_score) & inrange(series_score, 0, 5)
+	assert !missing(data_quality) & data_quality == 5
+	assert !missing(avg_quality) & inrange(avg_quality, 0, 5)
 }
 capture confirm variable countryname
 assert _rc
 
-// Empty valid result is stable
-wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) years(2010/2018) score_filter(row_score=0 0) clear
+// An exact zero bound is valid whether or not the API currently has matches
+wid, areas(FR) indicator(sptinc) perc(p99p100) age(992) pop(j) years(2010/2018) score_filter(data_quality=0 0) clear
 
-count
-assert r(N) == 0
-capture confirm numeric variable row_score
+capture confirm numeric variable data_quality
 assert !_rc
+assert !missing(data_quality) & data_quality == 0
