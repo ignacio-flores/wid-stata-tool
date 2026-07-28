@@ -1,10 +1,10 @@
-*! wid v1.0.7 world inequality database 23Jul2026
+*! wid v1.0.7 world inequality database 28Jul2026
 
 program wid
-	version 13
+	version 15
 	
 	local wid_cmdline `"`0'"'
-	syntax, [INDicators(string) AReas(string) Years(numlist) Perc(string) AGes(string) POPulation(string) METAdata SCORE_filter(string asis) clear VERBOSE]
+	syntax, [INDicators(string) AReas(string) Years(numlist) Perc(string) AGes(string) POPulation(string) METAdata QUALITY_filter(string asis) clear VERBOSE]
 	
 	// ---------------------------------------------------------------------- //
 	// Check if there are already some data in memory
@@ -23,24 +23,24 @@ program wid
 	local verbosity = cond("`verbose'" != "", "verbose", "silent")
 
 	// ---------------------------------------------------------------------- //
-	// Parse score filters before any API request is made
+	// Parse quality filters before any API request is made
 	// ---------------------------------------------------------------------- //
 
 	local wid_cmdline_lower = lower(`"`wid_cmdline'"')
-	local wid_cmdline_nospace = subinstr(`"`wid_cmdline_lower'"', " ", "", .)
-	local score_filter_specified = (strpos(`"`wid_cmdline_nospace'"', "score_filter(") > 0)
+	local wid_cmdline_normalized = subinstr(`"`wid_cmdline_lower'"', char(9), " ", .)
+	local quality_filter_specified = regexm(`"`wid_cmdline_normalized'"', "(^|[ ,])quality[_a-z]*[ ]*\(")
 	local data_quality_filter = 0
 	local avg_quality_filter = 0
 	local data_quality_min = .
 	local data_quality_max = .
 	local avg_quality_min = .
 	local avg_quality_max = .
-	if (`score_filter_specified') {
-		if (trim(`"`score_filter'"') == "") {
-			display as error "score_filter() cannot be empty"
+	if (`quality_filter_specified') {
+		if (trim(`"`quality_filter'"') == "") {
+			display as error "quality_filter() cannot be empty"
 			exit 198
 		}
-		wid_parse_score_filter `"`score_filter'"'
+		wid_parse_quality_filter `"`quality_filter'"'
 		local data_quality_filter = r(data_quality_filter)
 		local avg_quality_filter = r(avg_quality_filter)
 		local data_quality_min = r(data_quality_min)
@@ -364,7 +364,7 @@ program wid
 			display as text "* Download the metadata...", _continue
 		}
 		else {
-			display as text "* Download the metadata for score filtering...", _continue
+			display as text "* Download the metadata for quality filtering...", _continue
 		}
 		local metadata_mode "compact"
 		if ("`metadata'" == "") {
@@ -481,13 +481,13 @@ program wid
 	sort country variable percentile year
 end
 
-program wid_parse_score_filter, rclass
-	version 13
+program wid_parse_quality_filter, rclass
+	version 15
 	args filter
 	
 	local filter = lower(trim(`"`filter'"'))
 	if (`"`filter'"' == "") {
-		display as error "score_filter() cannot be empty"
+		display as error "quality_filter() cannot be empty"
 		exit 198
 	}
 	
@@ -532,20 +532,20 @@ program wid_parse_score_filter, rclass
 				local values = substr(`"`segment'"', 12, .)
 			}
 			else {
-				display as error "score_filter() only supports data_quality and avg_quality"
+				display as error "quality_filter() only supports data_quality and avg_quality"
 				exit 198
 			}
 			
 			local separator = substr(`"`values'"', 1, 1)
 			if (`"`separator'"' != "" & !inlist(`"`separator'"', " ", "=", ":", "{", "[")) {
-				display as error "invalid score_filter() score name"
+				display as error "invalid quality_filter() score name"
 				exit 198
 			}
 			
 			wid_parse_score_bounds `"`values'"'
 			if ("`name'" == "data_quality") {
 				if (`data_quality_used') {
-					display as error "data_quality specified more than once in score_filter()"
+					display as error "data_quality specified more than once in quality_filter()"
 					exit 198
 				}
 				local data_quality_used = 1
@@ -554,7 +554,7 @@ program wid_parse_score_filter, rclass
 			}
 			else {
 				if (`avg_quality_used') {
-					display as error "avg_quality specified more than once in score_filter()"
+					display as error "avg_quality specified more than once in quality_filter()"
 					exit 198
 				}
 				local avg_quality_used = 1
@@ -565,7 +565,7 @@ program wid_parse_score_filter, rclass
 	}
 	
 	if (!`data_quality_used' & !`avg_quality_used') {
-		display as error "score_filter() cannot be empty"
+		display as error "quality_filter() cannot be empty"
 		exit 198
 	}
 	
@@ -578,7 +578,7 @@ program wid_parse_score_filter, rclass
 end
 
 program wid_parse_score_bounds, rclass
-	version 13
+	version 15
 	args raw
 	
 	local spec = lower(trim(`"`raw'"'))
@@ -587,7 +587,7 @@ program wid_parse_score_bounds, rclass
 		local spec = trim(substr(`"`spec'"', 2, .))
 	}
 	if (`"`spec'"' == "") {
-		display as error "score_filter() bounds cannot be empty"
+		display as error "quality_filter() bounds cannot be empty"
 		exit 198
 	}
 	
@@ -627,13 +627,13 @@ program wid_parse_score_bounds, rclass
 				local max_set = 1
 			}
 			else {
-				display as error "invalid score_filter() bounds"
+				display as error "invalid quality_filter() bounds"
 				exit 198
 			}
 		}
 		
 		if (!`min_set' & !`max_set') {
-			display as error "score_filter() bounds cannot be empty"
+			display as error "quality_filter() bounds cannot be empty"
 			exit 198
 		}
 		if (!`min_set') {
@@ -651,7 +651,7 @@ program wid_parse_score_bounds, rclass
 		local clean = itrim(trim(`"`clean'"'))
 		local n : word count `clean'
 		if (!inlist(`n', 1, 2)) {
-			display as error "score_filter() bounds must be one number, two numbers, or min/max bounds"
+			display as error "quality_filter() bounds must be one number, two numbers, or min/max bounds"
 			exit 198
 		}
 		
@@ -669,11 +669,11 @@ program wid_parse_score_bounds, rclass
 	}
 	
 	if (`min' < 0 | `min' > 5 | `max' < 0 | `max' > 5) {
-		display as error "score_filter() bounds must be between 0 and 5"
+		display as error "quality_filter() bounds must be between 0 and 5"
 		exit 198
 	}
 	if (`min' > `max') {
-		display as error "score_filter() minimum cannot exceed maximum"
+		display as error "quality_filter() minimum cannot exceed maximum"
 		exit 198
 	}
 	
@@ -682,13 +682,13 @@ program wid_parse_score_bounds, rclass
 end
 
 program wid_parse_score_number, rclass
-	version 13
+	version 15
 	args token
 	
 	local token = trim(`"`token'"')
 	local value = real(`"`token'"')
 	if (`"`token'"' == "" | missing(`value')) {
-		display as error "score_filter() bounds must be numeric"
+		display as error "quality_filter() bounds must be numeric"
 		exit 198
 	}
 	
