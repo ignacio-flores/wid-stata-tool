@@ -19,6 +19,10 @@ if (_rc) {
 sysdir set PERSONAL "$root/ssc"
 cd "$root/tests"
 
+// Load helper programs before testing them directly. An auto-loaded wid command
+// that exits with an error does not leave its sibling programs available.
+quietly run "$root/ssc/wid.ado"
+
 // Full and abbreviated empty options must reach the option-specific diagnostic
 tempfile full_empty_log
 tempname full_empty_log_name
